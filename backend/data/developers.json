@@ -1,0 +1,92 @@
+[
+    {
+        "id": "DEV-001",
+        "name": "Alice Johnson",
+        "skills": [
+            "Python",
+            "Django",
+            "PostgreSQL",
+            "REST APIs"
+        ],
+        "experience_years": 5,
+        "current_workload_hours": 20,
+        "max_capacity_hours": 40,
+        "recent_performance": "excellent",
+        "preferences": [
+            "backend",
+            "databases"
+        ]
+    },
+    {
+        "id": "DEV-002",
+        "name": "Bob Smith",
+        "skills": [
+            "React",
+            "TypeScript",
+            "CSS",
+            "UI/UX Design"
+        ],
+        "experience_years": 3,
+        "current_workload_hours": 15,
+        "max_capacity_hours": 40,
+        "recent_performance": "good",
+        "preferences": [
+            "frontend",
+            "design"
+        ]
+    },
+    {
+        "id": "DEV-003",
+        "name": "Charlie Chen",
+        "skills": [
+            "Node.js",
+            "Express",
+            "MongoDB",
+            "WebSockets"
+        ],
+        "experience_years": 4,
+        "current_workload_hours": 35,
+        "max_capacity_hours": 40,
+        "recent_performance": "good",
+        "preferences": [
+            "backend",
+            "realtime"
+        ]
+    },
+    {
+        "id": "DEV-004",
+        "name": "Diana Martinez",
+        "skills": [
+            "Python",
+            "Testing",
+            "Pytest",
+            "Selenium"
+        ],
+        "experience_years": 6,
+        "current_workload_hours": 10,
+        "max_capacity_hours": 40,
+        "recent_performance": "excellent",
+        "preferences": [
+            "testing",
+            "quality assurance"
+        ]
+    },
+    {
+        "id": "DEV-005",
+        "name": "Ethan Brown",
+        "skills": [
+            "JavaScript",
+            "React",
+            "Node.js",
+            "Full Stack"
+        ],
+        "experience_years": 7,
+        "current_workload_hours": 25,
+        "max_capacity_hours": 40,
+        "recent_performance": "excellent",
+        "preferences": [
+            "full-stack",
+            "architecture"
+        ]
+    }
+]

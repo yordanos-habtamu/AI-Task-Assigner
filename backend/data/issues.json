@@ -1,0 +1,72 @@
+[
+  {
+    "id": "ISSUE-001",
+    "title": "Implement user authentication system",
+    "description": "Create a secure login/logout system with JWT tokens and password hashing",
+    "labels": ["security", "backend", "high-priority"],
+    "estimated_hours": 16
+  },
+  {
+    "id": "ISSUE-002",
+    "title": "Build responsive dashboard UI",
+    "description": "Design and implement a mobile-friendly dashboard with charts and statistics",
+    "labels": ["frontend", "UI/UX", "react"],
+    "estimated_hours": 20
+  },
+  {
+    "id": "ISSUE-003",
+    "title": "Optimize database queries",
+    "description": "Improve performance of slow queries in user analytics module",
+    "labels": ["database", "performance", "backend"],
+    "estimated_hours": 8
+  },
+  {
+    "id": "ISSUE-004",
+    "title": "Add unit tests for API endpoints",
+    "description": "Write comprehensive test coverage for all REST API endpoints",
+    "labels": ["testing", "backend", "quality"],
+    "estimated_hours": 12
+  },
+  {
+    "id": "ISSUE-005",
+    "title": "Fix mobile layout issues",
+    "description": "Resolve CSS bugs on mobile devices, especially on iOS Safari",
+    "labels": ["frontend", "bugfix", "CSS"],
+    "estimated_hours": 6
+  },
+  {
+    "id": "ISSUE-006",
+    "title": "Implement real-time notifications",
+    "description": "Add WebSocket support for real-time push notifications to users",
+    "labels": ["backend", "frontend", "realtime"],
+    "estimated_hours": 18
+  },
+  {
+    "id": "ISSUE-007",
+    "title": "Create API documentation",
+    "description": "Generate OpenAPI/Swagger documentation for all endpoints",
+    "labels": ["documentation", "backend"],
+    "estimated_hours": 10
+  },
+  {
+    "id": "ISSUE-008",
+    "title": "Refactor payment processing module",
+    "description": "Replace legacy payment code with modern Stripe integration",
+    "labels": ["backend", "refactoring", "payments"],
+    "estimated_hours": 24
+  },
+  {
+    "id": "ISSUE-009",
+    "title": "Design email templates",
+    "description": "Create responsive HTML email templates for notifications",
+    "labels": ["frontend", "design", "email"],
+    "estimated_hours": 8
+  },
+  {
+    "id": "ISSUE-010",
+    "title": "Implement data export feature",
+    "description": "Allow users to export their data in CSV and JSON formats",
+    "labels": ["backend", "feature", "data"],
+    "estimated_hours": 10
+  }
+]
