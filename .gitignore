@@ -27,6 +27,8 @@ ENV/
 
 # Environment variables
 .env
+DEMO.md
+QUICKSTART.md
 
 # IDE
 .vscode/
