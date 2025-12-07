@@ -11,3 +11,6 @@ alembic
 langchain-google-genai
 langchain-ollama
 bcrypt
+Flask
+authlib
+requests

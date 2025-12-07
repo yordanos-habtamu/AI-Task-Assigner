@@ -44,6 +44,31 @@ def main():
         
     # Auth Flow
     if not st.session_state.logged_in:
+        # Check for OAuth callback token
+        query_params = st.query_params
+        if 'auth_token' in query_params:
+            import requests
+            oauth_url = os.getenv('OAUTH_SERVER_URL', 'http://localhost:8502')
+            
+            try:
+                response = requests.get(
+                    f"{oauth_url}/auth/verify",
+                    params={'token': query_params['auth_token']},
+                    timeout=5
+                )
+                
+                if response.status_code == 200 and response.json().get('valid'):
+                    data = response.json()
+                    st.session_state.user_id = data['user_id']
+                    st.session_state.username = data['username']
+                    st.session_state.logged_in = True
+                    
+                    # Clear the token from URL
+                    st.query_params.clear()
+                    st.rerun()
+            except Exception as e:
+                st.error(f"OAuth verification failed: {str(e)}")
+        
         if st.session_state.auth_mode == "login":
             render_login()
         else:
