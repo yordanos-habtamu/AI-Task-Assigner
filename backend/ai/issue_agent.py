@@ -1,14 +1,12 @@
 """
 Issue Analyzer Agent
-Uses LangChain to analyze GitHub issues and extract structured information.
+Uses LangChain with pluggable LLM providers to analyze GitHub issues.
 """
 
 import os
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
+from backend.ai.llm_provider import LLMProvider, create_provider
 
 
 class IssueAnalysis(BaseModel):
@@ -22,44 +20,24 @@ class IssueAnalysis(BaseModel):
 class IssueAnalyzer:
     """Analyzes issues to extract structured information for assignment."""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, provider: LLMProvider = None):
         """
         Initialize the Issue Analyzer.
         
         Args:
-            api_key: OpenAI API key. If not provided, will use OPENAI_API_KEY env variable.
+            provider: LLMProvider instance. If not provided, will create from environment variables.
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass api_key.")
+        if provider is None:
+            # Create provider from environment
+            provider_type = os.getenv("AI_PROVIDER", "openai")
+            provider = create_provider(provider_type)
         
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0,
-            api_key=self.api_key
-        )
+        self.provider = provider
         
-        self.parser = JsonOutputParser(pydantic_object=IssueAnalysis)
-        
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert software engineering manager analyzing GitHub issues.
+        self.system_prompt = """You are an expert software engineering manager analyzing GitHub issues.
 Your task is to extract structured information from issue descriptions to help assign them to developers.
 
-{format_instructions}
-
-Be precise and thoughtful in your analysis."""),
-            ("user", """Analyze the following issue:
-
-ID: {id}
-Title: {title}
-Description: {description}
-Labels: {labels}
-Estimated Hours: {estimated_hours}
-
-Extract the required skills, difficulty level, summary, and complexity score.""")
-        ])
-        
-        self.chain = self.prompt | self.llm | self.parser
+Be precise and thoughtful in your analysis."""
     
     def analyze(self, issue: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -71,14 +49,21 @@ Extract the required skills, difficulty level, summary, and complexity score."""
         Returns:
             Dictionary with analysis results
         """
-        result = self.chain.invoke({
-            "id": issue.get("id", ""),
-            "title": issue.get("title", ""),
-            "description": issue.get("description", ""),
-            "labels": ", ".join(issue.get("labels", [])),
-            "estimated_hours": issue.get("estimated_hours", 0),
-            "format_instructions": self.parser.get_format_instructions()
-        })
+        user_prompt = f"""Analyze the following issue:
+
+ID: {issue.get("id", "")}
+Title: {issue.get("title", "")}
+Description: {issue.get("description", "")}
+Labels: {", ".join(issue.get("labels", []))}
+Estimated Hours: {issue.get("estimated_hours", 0)}
+
+Extract the required skills, difficulty level, summary, and complexity score."""
+        
+        result = self.provider.get_json_completion(
+            prompt=user_prompt,
+            system_prompt=self.system_prompt,
+            schema=IssueAnalysis
+        )
         
         # Add original issue ID to result
         result["issue_id"] = issue.get("id")

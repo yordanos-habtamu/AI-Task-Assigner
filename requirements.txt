@@ -5,3 +5,9 @@ tiktoken
 streamlit
 langchain-openai
 python-dotenv
+PyGithub
+SQLAlchemy
+alembic
+langchain-google-genai
+langchain-ollama
+bcrypt

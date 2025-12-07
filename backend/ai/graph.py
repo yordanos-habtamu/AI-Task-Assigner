@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, END
 from backend.ai.issue_agent import IssueAnalyzer
 from backend.ai.dev_agent import DeveloperAnalyzer
 from backend.ai.assign_agent import AssignmentAgent
+from backend.ai.notification_agent import NotificationAgent
 
 
 class WorkflowState(TypedDict):
@@ -18,13 +19,25 @@ class WorkflowState(TypedDict):
     analyzed_issues: List[Dict[str, Any]]
     analyzed_developers: List[Dict[str, Any]]
     assignments: List[Dict[str, Any]]
+    notifications: List[Dict[str, Any]]
     api_key: str
+    model_name: str
+    provider_type: str
 
 
 def analyze_issues_node(state: WorkflowState) -> WorkflowState:
     """Node to analyze all issues."""
     print("Analyzing issues...")
-    issue_analyzer = IssueAnalyzer(api_key=state["api_key"])
+    
+    # Create provider with explicit settings from state
+    from backend.ai.llm_provider import create_provider
+    provider = create_provider(
+        provider_type=state.get("provider_type", "openai"),
+        api_key=state.get("api_key"),
+        model=state.get("model_name")
+    )
+    
+    issue_analyzer = IssueAnalyzer(provider=provider)
     
     analyzed_issues = []
     for i, issue in enumerate(state["issues"], 1):
@@ -39,7 +52,16 @@ def analyze_issues_node(state: WorkflowState) -> WorkflowState:
 def analyze_developers_node(state: WorkflowState) -> WorkflowState:
     """Node to analyze all developers."""
     print("Analyzing developers...")
-    dev_analyzer = DeveloperAnalyzer(api_key=state["api_key"])
+    
+    # Create provider with explicit settings from state
+    from backend.ai.llm_provider import create_provider
+    provider = create_provider(
+        provider_type=state.get("provider_type", "openai"),
+        api_key=state.get("api_key"),
+        model=state.get("model_name")
+    )
+    
+    dev_analyzer = DeveloperAnalyzer(provider=provider)
     
     analyzed_developers = []
     for i, developer in enumerate(state["developers"], 1):
@@ -54,7 +76,16 @@ def analyze_developers_node(state: WorkflowState) -> WorkflowState:
 def assign_tasks_node(state: WorkflowState) -> WorkflowState:
     """Node to assign tasks to developers."""
     print("Assigning tasks...")
-    assignment_agent = AssignmentAgent(api_key=state["api_key"])
+    
+    # Create provider with explicit settings from state
+    from backend.ai.llm_provider import create_provider
+    provider = create_provider(
+        provider_type=state.get("provider_type", "openai"),
+        api_key=state.get("api_key"),
+        model=state.get("model_name")
+    )
+    
+    assignment_agent = AssignmentAgent(provider=provider)
     
     assignments = assignment_agent.assign(
         state["analyzed_issues"],
@@ -66,6 +97,27 @@ def assign_tasks_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
+def generate_notifications_node(state: WorkflowState) -> WorkflowState:
+    """Node to generate notifications for assignments."""
+    print("Generating notifications...")
+    
+    # Create provider with explicit settings from state
+    from backend.ai.llm_provider import create_provider
+    provider = create_provider(
+        provider_type=state.get("provider_type", "openai"),
+        api_key=state.get("api_key"),
+        model=state.get("model_name")
+    )
+    
+    notification_agent = NotificationAgent(provider=provider)
+    
+    notifications = notification_agent.generate(state["assignments"])
+    
+    state["notifications"] = notifications
+    print(f"  Generated {len(notifications)} notification drafts")
+    return state
+
+
 def create_workflow() -> StateGraph:
     """Create the LangGraph workflow."""
     workflow = StateGraph(WorkflowState)
@@ -74,34 +126,56 @@ def create_workflow() -> StateGraph:
     workflow.add_node("analyze_issues", analyze_issues_node)
     workflow.add_node("analyze_developers", analyze_developers_node)
     workflow.add_node("assign_tasks", assign_tasks_node)
+    workflow.add_node("generate_notifications", generate_notifications_node)
     
     # Add edges
     workflow.set_entry_point("analyze_issues")
     workflow.add_edge("analyze_issues", "analyze_developers")
     workflow.add_edge("analyze_developers", "assign_tasks")
-    workflow.add_edge("assign_tasks", END)
+    workflow.add_edge("assign_tasks", "generate_notifications")
+    workflow.add_edge("generate_notifications", END)
     
     return workflow.compile()
 
 
-def run_graph(issues: List[Dict[str, Any]], developers: List[Dict[str, Any]], api_key: str = None) -> List[Dict[str, Any]]:
+def run_graph(
+    issues: List[Dict[str, Any]], 
+    developers: List[Dict[str, Any]], 
+    api_key: str = None,
+    model_name: str = None,
+    provider_type: str = None
+) -> List[Dict[str, Any]]:
     """
     Run the complete workflow.
     
     Args:
         issues: List of issue dictionaries
         developers: List of developer dictionaries
-        api_key: OpenAI API key
+        api_key: API key (optional, overrides env)
+        model_name: Model name (optional, overrides env)
+        provider_type: Provider type (optional, overrides env)
         
     Returns:
         List of assignments
     """
-    api_key = api_key or os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass api_key.")
+    # Determine provider settings
+    provider_type = provider_type or os.getenv("AI_PROVIDER", "openai").lower()
+    
+    # Validation
+    if provider_type == "openai":
+        if not (api_key or os.getenv("OPENAI_API_KEY")):
+            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY or pass api_key parameter.")
+    elif provider_type == "gemini":
+        if not (api_key or os.getenv("GOOGLE_API_KEY")):
+            raise ValueError("Google API key required. Set GOOGLE_API_KEY environment variable or pass api_key parameter.")
+    elif provider_type == "ollama":
+        # Ollama doesn't need API key, but should be running
+        print(f"Using Ollama at {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
     
     print("\n" + "="*60)
-    print("Starting Task Assignment Workflow")
+    print(f"Starting Task Assignment Workflow ({provider_type.upper()} Provider)")
+    if model_name:
+        print(f"Model: {model_name}")
     print("="*60)
     
     workflow = create_workflow()
@@ -112,7 +186,10 @@ def run_graph(issues: List[Dict[str, Any]], developers: List[Dict[str, Any]], ap
         "analyzed_issues": [],
         "analyzed_developers": [],
         "assignments": [],
-        "api_key": api_key
+        "notifications": [],
+        "api_key": api_key,
+        "model_name": model_name,
+        "provider_type": provider_type
     }
     
     final_state = workflow.invoke(initial_state)
@@ -121,4 +198,4 @@ def run_graph(issues: List[Dict[str, Any]], developers: List[Dict[str, Any]], ap
     print("Workflow completed successfully!")
     print("="*60 + "\n")
     
-    return final_state["assignments"]
+    return final_state["notifications"]

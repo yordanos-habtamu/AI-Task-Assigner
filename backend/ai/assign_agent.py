@@ -1,14 +1,12 @@
 """
 Assignment Agent
-Uses LangChain to intelligently assign issues to developers.
+Uses LangChain with pluggable LLM providers to intelligently assign issues to developers.
 """
 
 import os
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
+from backend.ai.llm_provider import LLMProvider, create_provider
 
 
 class Assignment(BaseModel):
@@ -28,27 +26,21 @@ class AssignmentResult(BaseModel):
 class AssignmentAgent:
     """Assigns issues to developers based on analysis results."""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, provider: LLMProvider = None):
         """
         Initialize the Assignment Agent.
         
         Args:
-            api_key: OpenAI API key. If not provided, will use OPENAI_API_KEY env variable.
+            provider: LLMProvider instance. If not provided, will create from environment variables.
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass api_key.")
+        if provider is None:
+            # Create provider from environment
+            provider_type = os.getenv("AI_PROVIDER", "openai")
+            provider = create_provider(provider_type)
         
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0,
-            api_key=self.api_key
-        )
+        self.provider = provider
         
-        self.parser = JsonOutputParser(pydantic_object=AssignmentResult)
-        
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert software engineering manager making optimal task assignments.
+        self.system_prompt = """You are an expert software engineering manager making optimal task assignments.
 Your goal is to assign each issue to the best-suited developer based on:
 1. Skill match
 2. Current workload and availability
@@ -56,26 +48,12 @@ Your goal is to assign each issue to the best-suited developer based on:
 4. Developer preferences
 5. Recent performance
 
-{format_instructions}
-
 IMPORTANT RULES:
 - Don't overload developers who are already busy
 - Match issue difficulty to developer experience
 - Consider developer preferences when possible
 - Balance workload across the team
-- Provide clear, specific reasons for each assignment"""),
-            ("user", """Make assignments for the following issues and developers:
-
-ANALYZED ISSUES:
-{issues}
-
-ANALYZED DEVELOPERS:
-{developers}
-
-Assign each issue to the most suitable developer with detailed reasoning.""")
-        ])
-        
-        self.chain = self.prompt | self.llm | self.parser
+- Provide clear, specific reasons for each assignment"""
     
     def assign(self, analyzed_issues: List[Dict[str, Any]], analyzed_developers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -112,10 +90,20 @@ Assign each issue to the most suitable developer with detailed reasoning.""")
             for i, dev in enumerate(analyzed_developers)
         ])
         
-        result = self.chain.invoke({
-            "issues": issues_text,
-            "developers": developers_text,
-            "format_instructions": self.parser.get_format_instructions()
-        })
+        user_prompt = f"""Make assignments for the following issues and developers:
+
+ANALYZED ISSUES:
+{issues_text}
+
+ANALYZED DEVELOPERS:
+{developers_text}
+
+Assign each issue to the most suitable developer with detailed reasoning."""
+        
+        result = self.provider.get_json_completion(
+            prompt=user_prompt,
+            system_prompt=self.system_prompt,
+            schema=AssignmentResult
+        )
         
         return result["assignments"]

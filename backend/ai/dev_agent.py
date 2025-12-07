@@ -1,14 +1,12 @@
 """
 Developer Analyzer Agent
-Uses LangChain to analyze developer profiles and extract structured information.
+Uses LangChain with pluggable LLM providers to analyze developer profiles.
 """
 
 import os
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
+from backend.ai.llm_provider import LLMProvider, create_provider
 
 
 class DeveloperAnalysis(BaseModel):
@@ -24,46 +22,24 @@ class DeveloperAnalysis(BaseModel):
 class DeveloperAnalyzer:
     """Analyzes developer profiles to extract structured information for assignment."""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, provider: LLMProvider = None):
         """
         Initialize the Developer Analyzer.
         
         Args:
-            api_key: OpenAI API key. If not provided, will use OPENAI_API_KEY env variable.
+            provider: LLMProvider instance. If not provided, will create from environment variables.
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass api_key.")
+        if provider is None:
+            # Create provider from environment
+            provider_type = os.getenv("AI_PROVIDER", "openai")
+            provider = create_provider(provider_type)
         
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0,
-            api_key=self.api_key
-        )
+        self.provider = provider
         
-        self.parser = JsonOutputParser(pydantic_object=DeveloperAnalysis)
-        
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert software engineering manager analyzing developer profiles.
+        self.system_prompt = """You are an expert software engineering manager analyzing developer profiles.
 Your task is to extract structured information from developer data to help assign tasks effectively.
 
-{format_instructions}
-
-Consider workload, skills, experience, and preferences in your analysis."""),
-            ("user", """Analyze the following developer:
-
-ID: {id}
-Name: {name}
-Skills: {skills}
-Experience: {experience_years} years
-Current Workload: {current_workload_hours}h / {max_capacity_hours}h
-Recent Performance: {recent_performance}
-Preferences: {preferences}
-
-Extract strengths, weaknesses, preferred skills, workload state, availability, and skill match score.""")
-        ])
-        
-        self.chain = self.prompt | self.llm | self.parser
+Consider workload, skills, experience, and preferences in your analysis."""
     
     def analyze(self, developer: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -75,17 +51,23 @@ Extract strengths, weaknesses, preferred skills, workload state, availability, a
         Returns:
             Dictionary with analysis results
         """
-        result = self.chain.invoke({
-            "id": developer.get("id", ""),
-            "name": developer.get("name", ""),
-            "skills": ", ".join(developer.get("skills", [])),
-            "experience_years": developer.get("experience_years", 0),
-            "current_workload_hours": developer.get("current_workload_hours", 0),
-            "max_capacity_hours": developer.get("max_capacity_hours", 40),
-            "recent_performance": developer.get("recent_performance", "unknown"),
-            "preferences": ", ".join(developer.get("preferences", [])),
-            "format_instructions": self.parser.get_format_instructions()
-        })
+        user_prompt = f"""Analyze the following developer:
+
+ID: {developer.get("id", "")}
+Name: {developer.get("name", "")}
+Skills: {", ".join(developer.get("skills", []))}
+Experience: {developer.get("experience_years", 0)} years
+Current Workload: {developer.get("current_workload_hours", 0)}h / {developer.get("max_capacity_hours", 40)}h
+Recent Performance: {developer.get("recent_performance", "unknown")}
+Preferences: {", ".join(developer.get("preferences", []))}
+
+Extract strengths, weaknesses, preferred skills, workload state, availability, and skill match score."""
+        
+        result = self.provider.get_json_completion(
+            prompt=user_prompt,
+            system_prompt=self.system_prompt,
+            schema=DeveloperAnalysis
+        )
         
         # Add original developer ID and name to result
         result["developer_id"] = developer.get("id")
