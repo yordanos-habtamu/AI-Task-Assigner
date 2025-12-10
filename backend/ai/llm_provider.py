@@ -138,32 +138,40 @@ class GeminiProvider(LLMProvider):
 
 
 class OllamaProvider(LLMProvider):
-    """Ollama (local AI) provider implementation."""
+    """Local AI provider using OpenAI-compatible API endpoints (Ollama, LM Studio, etc.)."""
     
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1"):
+    def __init__(self, base_url: str = "http://localhost:1234", model: str = "llama-3.2-1b-instruct"):
         """
-        Initialize Ollama provider.
+        Initialize Local AI provider with OpenAI-compatible endpoints.
         
         Args:
-            base_url: Ollama server URL
-            model: Model name (default: llama3.1)
+            base_url: Base URL for local AI server (default: http://localhost:1234)
+            model: Model name (default: llama-3.2-1b-instruct)
+        
+        Note: This uses the OpenAI-compatible API format (/v1/chat/completions)
+        Works with: Ollama, LM Studio, LocalAI, etc.
         """
-        from langchain_ollama import ChatOllama
+        from langchain_openai import ChatOpenAI
         from langchain_core.output_parsers import JsonOutputParser
         from langchain_core.prompts import ChatPromptTemplate
         
         self.base_url = base_url
         self.model = model
-        self.llm = ChatOllama(
+        
+        # Use ChatOpenAI with custom base_url for OpenAI-compatible endpoints
+        self.llm = ChatOpenAI(
             model=model,
-            base_url=base_url,
-            temperature=0
+            temperature=0.7,  # Match your curl example
+            base_url=f"{base_url}/v1",  # Adds /v1 automatically
+            api_key="not-needed",  # Local server doesn't need API key
+            max_tokens=-1,  # Match your curl example (-1 = no limit)
+            streaming=False  # Disable streaming to match your example
         )
         self.parser_class = JsonOutputParser
         self.prompt_template = ChatPromptTemplate
     
     def get_json_completion(self, prompt: str, system_prompt: str, schema: type[BaseModel]) -> Dict[str, Any]:
-        """Get JSON completion from Ollama."""
+        """Get JSON completion from local AI."""
         parser = self.parser_class(pydantic_object=schema)
         
         prompt_obj = self.prompt_template.from_messages([
@@ -173,14 +181,31 @@ class OllamaProvider(LLMProvider):
         
         chain = prompt_obj | self.llm | parser
         
-        result = chain.invoke({
-            "format_instructions": parser.get_format_instructions()
-        })
-        
-        return result
+        try:
+            result = chain.invoke({
+                "format_instructions": parser.get_format_instructions()
+            })
+            
+            if result is None:
+                raise ValueError(
+                    f"Local AI server at {self.base_url} returned None. "
+                    f"Check if the server is running and model '{self.model}' is available."
+                )
+            
+            return result
+        except Exception as e:
+            error_msg = str(e)
+            if "Connection" in error_msg or "refused" in error_msg:
+                raise ValueError(
+                    f"Cannot connect to local AI server at {self.base_url}/v1/chat/completions\n"
+                    f"1. Check if your AI server is running\n"
+                    f"2. Verify the base URL in .env: OLLAMA_BASE_URL={self.base_url}\n"
+                    f"3. Test with: curl {self.base_url}/v1/models"
+                ) from e
+            raise e
     
     def get_provider_name(self) -> str:
-        return f"Ollama ({self.model})"
+        return f"Local AI ({self.model})"
 
 
 def create_provider(
@@ -225,8 +250,8 @@ def create_provider(
         return GeminiProvider(api_key, model)
     
     elif provider_type == "ollama":
-        base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        model = model or os.getenv("OLLAMA_MODEL", "llama3.1")
+        base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:1234")
+        model = model or os.getenv("OLLAMA_MODEL", "llama-3.2-1b-instruct")
         return OllamaProvider(base_url, model)
     
     else:
